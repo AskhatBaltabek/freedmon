@@ -1,0 +1,5 @@
+yfinance==1.2.0
+pytesseract==0.3.10
+opencv-python-headless==4.7.0.72
+schedule==1.1.0
+numpy==1.24.2

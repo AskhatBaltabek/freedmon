@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  monitoring-app:
+    build: .
+    container_name: freedmon-app
+    restart: unless-stopped
+    volumes:
+      # Persist the database on the host
+      - ./freedmon.db:/app/freedmon.db
+      # Persist snapshots on the host
+      - ./snapshots:/app/snapshots
+    devices:
+      # Map the USB camera/integrated camera to the container
+      - "/dev/video0:/dev/video0"
+    environment:
+      - PYTHONUNBUFFERED=1
+    # Run in the foreground for logs
+    stdin_open: true
+    tty: true
