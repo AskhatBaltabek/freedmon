@@ -4,20 +4,41 @@ import re
 import os
 from datetime import datetime
 
+import json
+
+def load_crop_config():
+    config_file = "crop_config.json"
+    if os.path.exists(config_file):
+        try:
+            with open(config_file, "r") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Error loading config: {e}")
+    # Default fallback
+    return {"crop_x": 0, "crop_y": 0, "crop_w": 10, "crop_h": 10}
+
 def capture_snapshot(folder="snapshots", camera_index=0):
+    config = load_crop_config()
+    crop_x, crop_y = config.get("crop_x", 0), config.get("crop_y", 0)
+    crop_w, crop_h = config.get("crop_w", 10), config.get("crop_h", 10)
+
     if not os.path.exists(folder):
         os.makedirs(folder)
     
     cap = cv2.VideoCapture(camera_index)
     if not cap.isOpened():
         print(f"Error: Could not open camera {camera_index}. Creating dummy image for testing.")
-        return create_dummy_image(folder)
+        return create_dummy_image(folder, crop_x, crop_y, crop_w, crop_h)
     
     ret, frame = cap.read()
     if not ret:
         print("Error: Could not read frame. Creating dummy image for testing.")
         cap.release()
-        return create_dummy_image(folder)
+        return create_dummy_image(folder, crop_x, crop_y, crop_w, crop_h)
+    
+    # Apply crop based on coordinates
+    if crop_w > 0 and crop_h > 0:
+        frame = frame[crop_y:crop_y+crop_h, crop_x:crop_x+crop_w]
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     image_path = os.path.join(folder, f"snapshot_{timestamp}.jpg")
@@ -26,7 +47,7 @@ def capture_snapshot(folder="snapshots", camera_index=0):
     cap.release()
     return image_path
 
-def create_dummy_image(folder="snapshots"):
+def create_dummy_image(folder="snapshots", crop_x=0, crop_y=0, crop_w=10, crop_h=10):
     import numpy as np
     if not os.path.exists(folder):
         os.makedirs(folder)
@@ -36,6 +57,10 @@ def create_dummy_image(folder="snapshots"):
     # Add some text that looks like the Freedom app
     cv2.putText(img, "Freedom Finance App", (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2)
     cv2.putText(img, "1 F = 472.58 T", (50, 250), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 0), 4)
+    
+    # Apply crop based on coordinates
+    if crop_w > 0 and crop_h > 0:
+        img = img[crop_y:crop_y+crop_h, crop_x:crop_x+crop_w]
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     image_path = os.path.join(folder, f"mock_{timestamp}.jpg")

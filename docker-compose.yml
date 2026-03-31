@@ -10,6 +10,8 @@ services:
       - ./freedmon.db:/app/freedmon.db
       # Persist snapshots on the host
       - ./snapshots:/app/snapshots
+      # Persist crop configuration
+      - ./crop_config.json:/app/crop_config.json
     devices:
       # Map the USB camera/integrated camera to the container
       - "/dev/video0:/dev/video0"
