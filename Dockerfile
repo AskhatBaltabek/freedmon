@@ -1,28 +1,24 @@
-# Use Python 3.9 slim as base
 FROM python:3.9-slim
 
-# Install system dependencies
-# tesseract-ocr: For OCR
-# libgl1, libglib2.0-0: For OpenCV (headless)
+# Устанавливаем зависимости
 RUN apt-get update && apt-get install -y \
     tesseract-ocr \
+    tesseract-ocr-rus \
     tesseract-ocr-eng \
-    libgl1 \
+    libgl1-mesa-glx \
     libglib2.0-0 \
+    # Добавляем v4l-utils для диагностики камеры внутри контейнера
+    v4l-utils \ 
     && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
 WORKDIR /app
-
-# Copy requirements first for better caching
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
 COPY . .
-
-# Ensure snapshots directory exists
 RUN mkdir -p snapshots
 
-# Run the monitoring app
-CMD ["python", "-u", "main.py"]
+# PYTHONUNBUFFERED=1 позволяет видеть логи в реальном времени
+ENV PYTHONUNBUFFERED=1
+
+CMD ["python", "main.py"]

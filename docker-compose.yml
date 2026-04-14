@@ -6,15 +6,16 @@ services:
     container_name: freedmon-app
     restart: unless-stopped
     volumes:
-      # Persist the database on the host
       - ./freedmon.db:/app/freedmon.db
-      # Persist snapshots on the host
       - ./snapshots:/app/snapshots
+    # Раскомментируем и добавляем доступ
     devices:
-      # Map the USB camera/integrated camera to the container
       - "/dev/video0:/dev/video0"
+    env_file:
+      - .env
     environment:
       - PYTHONUNBUFFERED=1
-    # Run in the foreground for logs
+      - USE_MOCK_CAMERA=0
     stdin_open: true
     tty: true
+    privileged: true

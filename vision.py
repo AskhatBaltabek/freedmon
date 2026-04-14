@@ -2,13 +2,88 @@ import cv2
 import pytesseract
 import re
 import os
+import time
+import subprocess
 from datetime import datetime
 
-def capture_snapshot(folder="snapshots", camera_index=0):
+# Configuration
+# Path to ADB. You can set this to "adb" if it's in your PATH.
+ADB_PATHS = [
+    r"c:\Users\User\AppData\Local\Android\Sdk\platform-tools\adb.exe",
+    r"c:\Users\User\Downloads\scrcpy-win64-v3.3.4\scrcpy-win64-v3.3.4\adb.exe",
+    "adb"
+]
+
+def find_adb():
+    for path in ADB_PATHS:
+        try:
+            subprocess.run([path, "version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return path
+        except FileNotFoundError:
+            continue
+    return None
+
+def capture_adb_screenshot(folder="snapshots", refresh=True):
     if not os.path.exists(folder):
         os.makedirs(folder)
     
-    cap = cv2.VideoCapture(camera_index)
+    adb_path = find_adb()
+    if not adb_path:
+        print("Error: adb.exe not found. Please install ADB or set the correct path.")
+        return None
+
+    if refresh:
+        print("Refreshing screen via ADB swipe down...")
+        try:
+            # Swipe from x=500, y=500 to x=500, y=2000 over 300ms
+            subprocess.run([adb_path, "shell", "input", "swipe", "500", "500", "500", "2000", "300"], check=False)
+            # Wait for the network request/animation to finish
+            print("Waiting for refresh to complete...")
+            time.sleep(4)
+        except Exception as e:
+            print(f"Failed to execute swipe command: {e}")
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    image_path = os.path.join(folder, f"adb_snapshot_{timestamp}.png")
+    
+    try:
+        # Take screenshot and save it to the folder
+        # We use 'shell screencap -p' to get PNG data and redirect to local file
+        # In PowerShell/Command Prompt, redirection might need care if using subprocess
+        # Better: capture output and write to file or use adb exec-out
+        result = subprocess.run([adb_path, "exec-out", "screencap", "-p"], capture_output=True)
+        if result.returncode == 0:
+            with open(image_path, "wb") as f:
+                f.write(result.stdout)
+            return image_path
+        else:
+            print(f"Error: ADB command failed with return code {result.returncode}")
+            return None
+    except Exception as e:
+        print(f"Error during ADB screenshot: {e}")
+        return None
+
+def capture_snapshot(folder="snapshots", camera_index=0, mode="adb", refresh=True):
+    if mode == "adb":
+        path = capture_adb_screenshot(folder, refresh=refresh)
+        if path:
+            return path
+        print("Falling back to camera capture...")
+
+    if not os.path.exists(folder):
+        os.makedirs(folder)
+
+    # If we are in a mock-only environment (like Docker on Windows without usbipd), 
+    # skip the camera attempt to avoid noisy OpenCV warnings.
+    if os.environ.get("USE_MOCK_CAMERA", "0") == "1":
+        print("USE_MOCK_CAMERA=1 detected. Using mock image.")
+        return create_dummy_image(folder)
+    # If running natively on Windows, DirectShow acts faster and is more reliable.
+    # If running inside Docker (Linux), just use the default backend.
+    if os.name == 'nt':
+        cap = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
+    else:
+        cap = cv2.VideoCapture(camera_index)
     if not cap.isOpened():
         print(f"Error: Could not open camera {camera_index}. Creating dummy image for testing.")
         return create_dummy_image(folder)
@@ -75,12 +150,17 @@ def extract_freedom_price(image_path):
     return None
 
 if __name__ == "__main__":
-    # Test with dummy image or just check camera
-    print("Testing camera snapshot...")
-    path = capture_snapshot()
+    # Test with ADB screenshot
+    print("Testing ADB snapshot...")
+    path = capture_snapshot(mode="adb")
     if path:
         print(f"Captured: {path}")
+        # If tesseract is not in path, you might need:
+        # pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
         price = extract_freedom_price(path)
-        print(f"Extracted Price: {price}")
+        if price:
+            print(f"Extracted Price: {price}")
+        else:
+            print("Could not extract price from image.")
     else:
-        print("Camera capture failed (expected in current environment).")
+        print("Capture failed.")

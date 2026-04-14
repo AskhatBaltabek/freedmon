@@ -38,6 +38,17 @@ def init_db():
         )
     ''')
     
+    # Calculations table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS calculations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            calculated_rate REAL,
+            ocr_rate REAL,
+            difference_percent REAL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
     conn.commit()
     conn.close()
 
@@ -68,6 +79,16 @@ def save_ocr(rate, snapshot_path):
         INSERT INTO ocr_data (rate, snapshot_path)
         VALUES (?, ?)
     ''', (rate, snapshot_path))
+    conn.commit()
+    conn.close()
+
+def save_calculation(calculated_rate, ocr_rate, difference_percent):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO calculations (calculated_rate, ocr_rate, difference_percent)
+        VALUES (?, ?, ?)
+    ''', (calculated_rate, ocr_rate, difference_percent))
     conn.commit()
     conn.close()
 
