@@ -14,15 +14,21 @@ async def fetch_frhc_data():
         pre_market = info.get("preMarketPrice")
         post_market = info.get("postMarketPrice")
         
+        # In yfinance, regularMarketPrice is usually the closing price after market hours
+        # but let's be explicit for our new job
+        closing_price = live_price
+        
         # Fallback if ticker.info is sparse (sometimes happens with yfinance)
         if live_price is None:
             fast_info = ticker.fast_info
             live_price = fast_info.get("last_price")
+            closing_price = live_price
             
         print(f"FRHC yfinance: Live={live_price}, Pre={pre_market}, Post={post_market}")
         
         return {
             "live_price": live_price,
+            "closing_price": closing_price,
             "pre_market": pre_market,
             "post_market": post_market
         }

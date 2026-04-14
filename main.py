@@ -19,18 +19,24 @@ from datetime import datetime
 # Set Tesseract path since it's installed but not in system PATH
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
-def send_telegram_alert(message, chat_id):
+def send_telegram_alert(message, chat_id, silent=False):
     token = os.environ.get("TG_BOT_TOKEN")
     if not token or not chat_id:
         print(f"Telegram configuration missing (Token: {bool(token)}, Chat ID: {chat_id}). Cannot send alert.")
         return
     url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = {
+        "chat_id": chat_id, 
+        "text": message, 
+        "parse_mode": "Markdown",
+        "disable_notification": silent
+    }
     try:
-        response = requests.post(url, json={"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}, timeout=10)
+        response = requests.post(url, json=payload, timeout=10)
         if response.status_code != 200:
             print(f"Failed to send Telegram alert: {response.text}")
         else:
-            print(f"Telegram alert sent successfully to {chat_id}.")
+            print(f"Telegram alert sent successfully to {chat_id} (Silent: {silent}).")
     except Exception as e:
         print(f"Error sending Telegram alert: {e}")
 
@@ -168,8 +174,48 @@ async def job():
 
     print(f"--- Cycle Complete at {datetime.now()} ---")
 
+async def post_market_job():
+    # Only run between 01:00 and 03:00
+    now = datetime.now()
+    if now.hour < 1 or now.hour >= 3:
+        # print(f"Skipping post-market job (Time: {now.strftime('%H:%M:%S')}, outside 01:00 - 03:00)")
+        return
+
+    print(f"\n--- Starting Post-Market Monitoring at {now} ---")
+    
+    frhc_data = await fetch_frhc_data()
+    if not frhc_data:
+        print("Failed to fetch FRHC data for post-market job.")
+        return
+
+    close = frhc_data.get('closing_price')
+    post = frhc_data.get('post_market')
+
+    if close is not None and post is not None:
+        diff_pct = abs(post - close) / close * 100
+        print(f"Post-Market Check: Close={close}, Post={post}, Diff={diff_pct:.2f}%")
+
+        if diff_pct >= 1.0:
+            print(f"Post-market difference ({diff_pct:.2f}%) exceeds 1.0%, sending alert...")
+            target_chat_id = os.environ.get("TG_CHAT_ID_POST_MARKET")
+            
+            msg = (
+                "🌙 *Post-Market Price Alert* 🌙\n\n"
+                f"📈 FRHC Closing: `{close:.2f}` $\n"
+                f"🌒 FRHC Post-Market: `{post:.2f}` $\n"
+                f"⚠️ Difference: *{diff_pct:.2f}%*"
+            )
+            send_telegram_alert(msg, target_chat_id)
+    else:
+        print(f"Post-market job missing data: Close={close}, Post={post}")
+
+    print(f"--- Post-Market check complete at {datetime.now()} ---")
+
 def run_async_job():
     asyncio.run(job())
+
+def run_async_post_market_job():
+    asyncio.run(post_market_job())
 
 def cleanup_snapshots():
     print(f"\n--- Cleaning up snapshots folder at {datetime.now()} ---")
@@ -197,8 +243,11 @@ if __name__ == "__main__":
     # Run once at startup
     run_async_job()
     
-    # Schedule every 1 minute
+    # Schedule every 1 minute for main job
     schedule.every(1).minutes.do(run_async_job)
+    
+    # Schedule every 30 seconds for post-market job
+    schedule.every(30).seconds.do(run_async_post_market_job)
     
     # Schedule snapshot cleanup every 1 hour
     schedule.every(1).hours.do(cleanup_snapshots)
