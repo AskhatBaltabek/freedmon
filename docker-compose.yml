@@ -8,7 +8,8 @@ services:
     volumes:
       - ./freedmon.db:/app/freedmon.db
       - ./snapshots:/app/snapshots
-    # Раскомментируем и добавляем доступ
+      # Persist crop configuration
+      - ./crop_config.json:/app/crop_config.json
     devices:
       - "/dev/video0:/dev/video0"
     env_file:
