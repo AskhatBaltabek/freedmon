@@ -6,24 +6,24 @@ import time
 import subprocess
 from datetime import datetime
 
-import json
+# Configuration
+# Path to ADB. You can set this to "adb" if it's in your PATH.
+ADB_PATHS = [
+    r"c:\Users\User\AppData\Local\Android\Sdk\platform-tools\adb.exe",
+    r"c:\Users\User\Downloads\scrcpy-win64-v3.3.4\scrcpy-win64-v3.3.4\adb.exe",
+    "adb"
+]
 
-def load_crop_config():
-    config_file = "crop_config.json"
-    if os.path.exists(config_file):
+def find_adb():
+    for path in ADB_PATHS:
         try:
-            with open(config_file, "r") as f:
-                return json.load(f)
-        except Exception as e:
-            print(f"Error loading config: {e}")
-    # Default fallback
-    return {"crop_x": 0, "crop_y": 0, "crop_w": 10, "crop_h": 10}
+            subprocess.run([path, "version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return path
+        except FileNotFoundError:
+            continue
+    return None
 
-def capture_snapshot(folder="snapshots", camera_index=0):
-    config = load_crop_config()
-    crop_x, crop_y = config.get("crop_x", 0), config.get("crop_y", 0)
-    crop_w, crop_h = config.get("crop_w", 10), config.get("crop_h", 10)
-
+def capture_adb_screenshot(folder="snapshots", refresh=True):
     if not os.path.exists(folder):
         os.makedirs(folder)
     
