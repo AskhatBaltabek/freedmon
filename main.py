@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 # Load variables from .env file
 load_dotenv()
 
-from db import init_db, save_equities, save_currency, save_ocr, save_calculation
+from db import init_db, save_equities, save_currency, save_ocr, save_calculation, get_last_ocr_prices
 from scraper import fetch_frhc_data, fetch_usd_kzt
 from vision import capture_snapshot, extract_freedom_price
 from datetime import datetime
@@ -28,7 +28,7 @@ def send_telegram_alert(message, chat_id, silent=False):
     payload = {
         "chat_id": chat_id, 
         "text": message, 
-        "parse_mode": "Markdown",
+        "parse_mode": "HTML",
         "disable_notification": silent
     }
     try:
@@ -148,23 +148,27 @@ async def job():
                 
                 # Determine signal and target chat ID
                 if ocr_price < calculated_rate:
-                    signal = "🟢 *ЗЕЛЕНЫЙ СИГНАЛ (КУПИТЬ)*"
+                    signal = "🟢 <b>ЗЕЛЕНЫЙ СИГНАЛ (КУПИТЬ)</b>"
                     target_chat_id = os.environ.get("TG_CHAT_ID_BUY")
                 elif ocr_price > calculated_rate:
-                    signal = "🔴 *КРАСНЫЙ СИГНАЛ (ПРОДАТЬ)*"
+                    signal = "🔴 <b>КРАСНЫЙ СИГНАЛ (ПРОДАТЬ)</b>"
                     target_chat_id = os.environ.get("TG_CHAT_ID_SELL")
                 else:
-                    signal = "⚪ *НЕЙТРАЛЬНО*"
+                    signal = "⚪ <b>НЕЙТРАЛЬНО</b>"
                     target_chat_id = os.environ.get("TG_CHAT_ID_BUY")
+
+                history = get_last_ocr_prices(10)
+                history_text = "\n".join([f"{i+1}. {p:.4f}" for i, p in enumerate(history)])
 
                 msg = (
                     f"{signal}\n\n"
-                    "🚨 *Freedom Arbitrage Alert* 🚨\n\n"
-                    f"📈 FRHC ({price_source}): `{equities_price:.2f}` $\n"
-                    f"💱 USD/KZT (Yahoo): `{usd_kzt:.2f}` ₸\n\n"
-                    f"🧮 Calculated Rate: `{calculated_rate:.4f}`\n"
-                    f"📷 Extracted Rate: `{ocr_price:.4f}`\n"
-                    f"⚠️ Difference: *{diff_pct:.2f}%*"
+                    "🚨 <b>Freedom Arbitrage Alert</b> 🚨\n\n"
+                    f"📈 FRHC ({price_source}): <code>{equities_price:.2f}</code> $\n"
+                    f"💱 USD/KZT (Yahoo): <code>{usd_kzt:.2f}</code> ₸\n\n"
+                    f"🧮 Calculated Rate: <code>{calculated_rate:.4f}</code>\n"
+                    f"📷 Extracted Rate: <code>{ocr_price:.4f}</code>\n"
+                    f"⚠️ Difference: <b>{diff_pct:.2f}%</b>\n\n"
+                    f"<blockquote expandable><b>Extraction History (Last 10):</b>\n{history_text}</blockquote>"
                 )
                 send_telegram_alert(msg, target_chat_id)
         else:
@@ -199,11 +203,15 @@ async def post_market_job():
             print(f"Post-market difference ({diff_pct:.2f}%) exceeds 1.0%, sending alert...")
             target_chat_id = os.environ.get("TG_CHAT_ID_POST_MARKET")
             
+            history = get_last_ocr_prices(10)
+            history_text = "\n".join([f"{i+1}. {p:.4f}" for i, p in enumerate(history)])
+
             msg = (
-                "🌙 *Post-Market Price Alert* 🌙\n\n"
-                f"📈 FRHC Closing: `{close:.2f}` $\n"
-                f"🌒 FRHC Post-Market: `{post:.2f}` $\n"
-                f"⚠️ Difference: *{diff_pct:.2f}%*"
+                "🌙 <b>Post-Market Price Alert</b> 🌙\n\n"
+                f"📈 FRHC Closing: <code>{close:.2f}</code> $\n"
+                f"🌒 FRHC Post-Market: <code>{post:.2f}</code> $\n"
+                f"⚠️ Difference: <b>{diff_pct:.2f}%</b>\n\n"
+                f"<blockquote expandable><b>Extraction History (Last 10):</b>\n{history_text}</blockquote>"
             )
             send_telegram_alert(msg, target_chat_id)
     else:

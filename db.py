@@ -92,6 +92,18 @@ def save_calculation(calculated_rate, ocr_rate, difference_percent):
     conn.commit()
     conn.close()
 
+def get_last_ocr_prices(n=10):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT rate FROM ocr_data
+        ORDER BY created_at DESC
+        LIMIT ?
+    ''', (n,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [row[0] for row in rows]
+
 if __name__ == "__main__":
     init_db()
     print("Database initialized.")
