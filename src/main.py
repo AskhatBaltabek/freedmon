@@ -198,7 +198,13 @@ def _check_night_window_signal(ocr_price: float | None) -> None:
             f"🌙 Night window BUY signal triggered: diff={diff_pct:.2f}%, "
             f"sending to TG_CHAT_ID_BUY"
         )
-        TelegramNotifier.send_alert(msg, Config.TG_CHAT_ID_BUY)
+        # The user requested to stop sending signals during the night window 
+        # except for _check_night_volatility_signal. 
+        # So we skip sending the 'Night baseline' signal.
+        # TelegramNotifier.send_alert(msg, Config.TG_CHAT_ID_BUY)
+        logger.info(
+            f"🌙 Night window BUY signal suppressed (only volatility allowed): diff={diff_pct:.2f}%"
+        )
         _night_signal_sent_today = True
 
 
@@ -232,11 +238,17 @@ def _check_night_volatility_signal(ocr_price: float | None) -> None:
             f"⏰ Время: {astana_now.strftime('%H:%M:%S')} Астана\n\n"
             f"<blockquote expandable><b>Extraction History:</b>\n{history_text}</blockquote>"
         )
-        logger.info(f"🌙 Night volatility detected: {diff_pct:.2f}%. Notifying subscribers...")
-        
-        for sub_chat_id, platform in DatabaseRepository.get_active_subscribers():
-            if platform == 'telegram':
-                TelegramNotifier.send_alert(msg, sub_chat_id)
+        # Check if this volatility signal is a duplicate
+        is_duplicate = DatabaseRepository.is_signal_duplicate("NIGHT_VOLATILITY", ocr_price, _night_prev_ocr_price)
+        DatabaseRepository.save_signal("NIGHT_VOLATILITY", ocr_price, _night_prev_ocr_price, diff_pct)
+
+        if not is_duplicate:
+            logger.info(f"🌙 Night volatility detected: {diff_pct:.2f}%. Notifying subscribers...")
+            for sub_chat_id, platform in DatabaseRepository.get_active_subscribers():
+                if platform == 'telegram':
+                    TelegramNotifier.send_alert(msg, sub_chat_id)
+        else:
+            logger.info(f"🌙 Night volatility detected: {diff_pct:.2f}%, but it is a DUPLICATE. Skipping notification.")
 
     # Update previous price for next cycle
     _night_prev_ocr_price = ocr_price
@@ -426,15 +438,20 @@ async def monitoring_cycle():
                     f"<blockquote expandable><b>Extraction History:</b>\n{history_text}</blockquote>"
                 )
                 
-                # Send to main target channel/chat
-                silent_mode = is_duplicate
-                logger.info(f"Signal type: {signal_type}, Is duplicate: {is_duplicate}, Sending in silent mode: {silent_mode}")
-                TelegramNotifier.send_alert(msg, target_chat_id, silent=silent_mode)
-                
-                # Send to all active subscribers (also in silent mode if duplicate)
-                for sub_chat_id, platform in DatabaseRepository.get_active_subscribers():
-                    if platform == 'telegram':
-                        TelegramNotifier.send_alert(msg, sub_chat_id, silent=silent_mode)
+                # Skip sending if it's the night window (except for volatility signals)
+                if _is_night_window():
+                    logger.info(f"Signal suppressed: night window active (01:00-05:00 Astana).")
+                elif is_duplicate:
+                    logger.info(f"Signal suppressed: duplicate signal (Type: {signal_type}, OCR: {ocr_price}).")
+                else:
+                    logger.info(f"Signal type: {signal_type}, Sending alert...")
+                    # Send to main target channel/chat
+                    TelegramNotifier.send_alert(msg, target_chat_id)
+                    
+                    # Send to all active subscribers
+                    for sub_chat_id, platform in DatabaseRepository.get_active_subscribers():
+                        if platform == 'telegram':
+                            TelegramNotifier.send_alert(msg, sub_chat_id)
 
         # Log cycle data to the daily file
         BusinessLogger.log_cycle(
@@ -454,7 +471,8 @@ async def monitoring_cycle():
     _check_night_window_signal(ocr_price)
     _check_night_volatility_signal(ocr_price)
 
-    check_subscriptions_and_notify()
+    if not _is_night_window():
+        check_subscriptions_and_notify()
 
 async def post_market_cycle():
     ny_now = get_ny_time()
@@ -490,12 +508,17 @@ async def post_market_cycle():
                 f"<blockquote expandable><b>Extraction History:</b>\n{history_text}</blockquote>"
             )
             
-            silent_mode = is_duplicate
-            logger.info(f"Post-market signal, Is duplicate: {is_duplicate}, Sending in silent mode: {silent_mode}")
-            TelegramNotifier.send_alert(msg, Config.TG_CHAT_ID_POST_MARKET, silent=silent_mode)
-            for sub_chat_id, platform in DatabaseRepository.get_active_subscribers():
-                if platform == 'telegram':
-                    TelegramNotifier.send_alert(msg, sub_chat_id, silent=silent_mode)
+            # Skip sending if it's the night window or a duplicate
+            if _is_night_window():
+                logger.info(f"Post-market signal suppressed: night window active.")
+            elif is_duplicate:
+                logger.info(f"Post-market signal suppressed: duplicate signal.")
+            else:
+                logger.info(f"Post-market signal, Sending alert...")
+                TelegramNotifier.send_alert(msg, Config.TG_CHAT_ID_POST_MARKET)
+                for sub_chat_id, platform in DatabaseRepository.get_active_subscribers():
+                    if platform == 'telegram':
+                        TelegramNotifier.send_alert(msg, sub_chat_id)
                     
     check_subscriptions_and_notify()
 
