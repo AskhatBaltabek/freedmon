@@ -5,7 +5,7 @@ RUN apt-get update && apt-get install -y \
     tesseract-ocr \
     tesseract-ocr-rus \
     tesseract-ocr-eng \
-    libgl1-mesa-glx \
+    libgl1 \
     libglib2.0-0 \
     # Добавляем v4l-utils для диагностики камеры внутри контейнера
     v4l-utils \ 
@@ -20,5 +20,6 @@ RUN mkdir -p snapshots
 
 # PYTHONUNBUFFERED=1 позволяет видеть логи в реальном времени
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
 
-CMD ["python", "main.py"]
+CMD ["python", "-m", "src.main"]

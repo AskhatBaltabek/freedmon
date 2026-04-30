@@ -20,3 +20,15 @@ services:
     stdin_open: true
     tty: true
     privileged: true
+
+  registration-bot:
+    build: .
+    container_name: freedmon-bot
+    command: python bot.py
+    restart: unless-stopped
+    volumes:
+      - ./freedmon.db:/app/freedmon.db
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
