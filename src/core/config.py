@@ -22,6 +22,7 @@ class Config:
     TG_CHAT_ID_BUY = os.environ.get("TG_CHAT_ID_BUY", "")
     TG_CHAT_ID_SELL = os.environ.get("TG_CHAT_ID_SELL", "")
     TG_CHAT_ID_POST_MARKET = os.environ.get("TG_CHAT_ID_POST_MARKET", "")
+    TG_CHAT_ID_ERROR = os.environ.get("TG_CHAT_ID_ERROR", "288485936")
 
     # Database
     DB_PATH = os.environ.get("DB_PATH", os.path.join(root_dir, "freedmon.db"))

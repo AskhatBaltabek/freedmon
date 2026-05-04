@@ -31,6 +31,8 @@ _night_baseline_price: float | None = None
 _night_baseline_date: object | None = None   # date on which baseline was set
 _night_signal_sent_today: bool = False        # rate-limit: one BUY signal per night
 _night_prev_ocr_price: float | None = None    # for volatility check (current vs previous)
+_last_ocr_error_notify_time: datetime | None = None
+_last_task_error_notify_time: datetime | None = None
 
 def get_ny_time():
     """Returns current time in New York timezone (EST/EDT)."""
@@ -310,6 +312,14 @@ async def monitoring_cycle():
                     DatabaseRepository.save_ocr(ocr_price, snapshot_path)
                 else:
                     logger.warning("OCR failed to extract logic or price was out of bounds.")
+                    
+                    # Notify once every 30 minutes to prevent spam
+                    global _last_ocr_error_notify_time
+                    now = datetime.now()
+                    if _last_ocr_error_notify_time is None or (now - _last_ocr_error_notify_time) > timedelta(minutes=30):
+                        msg = "⚠️ <b>OCR Warning:</b> Failed to extract price or logic. Check screen orientation/resolution."
+                        TelegramNotifier.send_alert(msg, Config.TG_CHAT_ID_ERROR)
+                        _last_ocr_error_notify_time = now
             else:
                 logger.error("Cropped image is empty. Check screen resolution/rotation.")
         else:
@@ -551,6 +561,14 @@ async def schedule_task(interval_seconds, task_func):
                 task_func()
         except Exception as e:
             logger.exception(f"Error in scheduled task {task_func.__name__}: {e}")
+            
+            # Notify once every 30 minutes to prevent spam
+            global _last_task_error_notify_time
+            now = datetime.now()
+            if _last_task_error_notify_time is None or (now - _last_task_error_notify_time) > timedelta(minutes=30):
+                error_msg = f"❌ <b>Error in task {task_func.__name__}:</b>\n\n<code>{str(e)}</code>"
+                TelegramNotifier.send_alert(error_msg, Config.TG_CHAT_ID_ERROR)
+                _last_task_error_notify_time = now
         await asyncio.sleep(interval_seconds)
 
 async def main():
@@ -559,7 +577,7 @@ async def main():
     logger.info("Freedom Finance Monitoring App Started.")
     
     # Schedule tasks concurrently
-    task1 = asyncio.create_task(schedule_task(30, monitoring_cycle))
+    task1 = asyncio.create_task(schedule_task(20, monitoring_cycle))
     task2 = asyncio.create_task(schedule_task(30, post_market_cycle))
     task3 = asyncio.create_task(schedule_task(3600, cleanup_snapshots))
     
@@ -570,3 +588,7 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Monitoring App Stopped.")
+    except Exception as e:
+        error_msg = f"💀 <b>FATAL ERROR: Application Crashed</b>\n\n<code>{str(e)}</code>"
+        logger.exception(f"Fatal error in main entry point: {e}")
+        TelegramNotifier.send_alert(error_msg, Config.TG_CHAT_ID_ERROR)
