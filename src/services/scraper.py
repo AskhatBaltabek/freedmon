@@ -12,7 +12,17 @@ class ScraperService:
     
     @staticmethod
     async def fetch_frhc_investing() -> Optional[Dict[str, Any]]:
-        """Fetches FRHC data from Investing.com."""
+        """
+        Fetches Freedom Holding Corp. (FRHC) stock prices from Investing.com using a cloudscraper.
+        
+        It attempts to parse the HTML to extract:
+        - Live/Last Price
+        - Pre-Market Price
+        - Post-Market (After Hours) Price
+        
+        Returns:
+            dict: A dictionary containing the extracted prices, or None if the request/parsing fails.
+        """
         try:
             url = "https://www.investing.com/equities/freedom"
             scraper = cloudscraper.create_scraper()
@@ -108,7 +118,13 @@ class ScraperService:
 
     @staticmethod
     async def fetch_frhc_yahoo() -> Optional[Dict[str, Any]]:
-        """Fetches FRHC data using yfinance (Fallback)."""
+        """
+        Fetches FRHC data using the yfinance library. 
+        This acts as a fallback mechanism if Investing.com scraping fails.
+        
+        Returns:
+            dict: A dictionary containing regular, pre-market, and post-market prices, or None on failure.
+        """
         try:
             logger.info("Fetching FRHC data via yfinance (Fallback)...")
             ticker = await asyncio.to_thread(yf.Ticker, "FRHC")
@@ -146,7 +162,16 @@ class ScraperService:
 
     @classmethod
     async def fetch_frhc_data(cls) -> Optional[Dict[str, Any]]:
-        """Primary: Investing.com, Fallback: yfinance."""
+        """
+        Primary interface to fetch FRHC market data.
+        
+        Strategy:
+        1. Attempt to scrape from Investing.com (Primary).
+        2. If that fails or returns None, fallback to yfinance.
+        
+        Returns:
+            dict | None: The compiled market data dictionary.
+        """
         data = await cls.fetch_frhc_investing()
         if data:
             return data
@@ -154,7 +179,12 @@ class ScraperService:
 
     @staticmethod
     async def fetch_usd_kzt_investing() -> Optional[float]:
-        """Fetches USD/KZT rate from Investing.com."""
+        """
+        Fetches the current USD to KZT exchange rate from Investing.com.
+        
+        Returns:
+            float: The exchange rate, or None if the request/parsing fails.
+        """
         try:
             url = "https://www.investing.com/currencies/usd-kzt"
             scraper = cloudscraper.create_scraper()
@@ -174,7 +204,13 @@ class ScraperService:
 
     @staticmethod
     async def fetch_usd_kzt_yahoo() -> Optional[float]:
-        """Fetches USD/KZT rate via yfinance (Fallback)."""
+        """
+        Fetches the USD to KZT exchange rate via yfinance.
+        Acts as a fallback if the Investing.com scraper fails.
+        
+        Returns:
+            float: The exchange rate, or None on failure.
+        """
         try:
             logger.info("Fetching USD/KZT rate via yfinance (Fallback)...")
             ticker = await asyncio.to_thread(yf.Ticker, "USDKZT=X")
@@ -191,7 +227,16 @@ class ScraperService:
 
     @classmethod
     async def fetch_usd_kzt(cls) -> Optional[float]:
-        """Primary: Investing.com, Fallback: yfinance."""
+        """
+        Primary interface to fetch the USD/KZT exchange rate.
+        
+        Strategy:
+        1. Attempt Investing.com (Primary).
+        2. Fallback to yfinance.
+        
+        Returns:
+            float | None: The exchange rate.
+        """
         rate = await cls.fetch_usd_kzt_investing()
         if rate:
             return rate

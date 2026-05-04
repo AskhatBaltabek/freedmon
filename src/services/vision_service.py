@@ -13,7 +13,15 @@ from src.core.config import Config
 logger = logging.getLogger(__name__)
 
 class VisionService:
-    """Service handling ADB screenshots and OCR processing."""
+    """
+    Service responsible for device interaction and image processing.
+    
+    It handles:
+    - Connecting to the Android device via ADB (WiFi or USB fallback).
+    - Capturing screenshots of the device screen.
+    - Refreshing the screen (simulating a pull-to-refresh swipe).
+    - Preprocessing the screenshot and extracting the numerical price via Tesseract OCR.
+    """
     
     ADB_PATHS = [
         r"c:\Users\User\AppData\Local\Android\Sdk\platform-tools\adb.exe",
@@ -74,6 +82,16 @@ class VisionService:
         pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
     def capture_adb_screenshot(self, folder: str = Config.SNAPSHOTS_DIR, refresh: bool = True) -> Optional[str]:
+        """
+        Captures a screenshot from the connected Android device using ADB.
+        
+        Args:
+            folder (str): Directory where the screenshot should be saved.
+            refresh (bool): If True, simulates a swipe-down gesture to refresh the Freedom app UI before capturing.
+            
+        Returns:
+            str | None: The absolute path to the saved screenshot image, or None if it fails.
+        """
         if not os.path.exists(folder):
             os.makedirs(folder)
         
@@ -113,7 +131,16 @@ class VisionService:
         return self.capture_adb_screenshot(folder=folder, refresh=refresh)
 
     def preprocess_image(self, img):
-        """Applies Advanced OCR preprocessing."""
+        """
+        Applies advanced OpenCV transformations to optimize the image for Tesseract OCR.
+        Steps include: Grayscale conversion, cubic scaling, bilateral noise filtering, and OTSU thresholding.
+        
+        Args:
+            img (numpy.ndarray): The raw BGR or Grayscale OpenCV image array.
+            
+        Returns:
+            numpy.ndarray: The processed binary image ready for OCR.
+        """
         if len(img.shape) == 3:
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         else:
@@ -125,7 +152,18 @@ class VisionService:
         return thresh
 
     def extract_freedom_price(self, image_path_or_img: Union[str, any]) -> Optional[float]:
-        """Extracts numerical price taking robust measures against false readings."""
+        """
+        Extracts the numerical exchange rate from the processed image.
+        
+        Applies specific regex patterns to filter out false readings and correct common
+        Tesseract mistakes (like missing decimal points or misinterpreting text as digits).
+        
+        Args:
+            image_path_or_img (str | numpy.ndarray): Path to the image file or the preloaded OpenCV image array.
+            
+        Returns:
+            float | None: The parsed float price (e.g., 6.3798), or None if extraction/validation fails.
+        """
         if isinstance(image_path_or_img, str):
             if not os.path.exists(image_path_or_img):
                 logger.error(f"Path does not exist: {image_path_or_img}")

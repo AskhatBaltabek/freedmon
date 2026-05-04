@@ -20,7 +20,11 @@ def get_db_connection():
         conn.close()
 
 class DatabaseRepository:
-    """Encapsulates all SQLite database queries using safe context managers."""
+    """
+    Encapsulates all SQLite database queries using safe context managers.
+    Handles persistence of market data, OCR snapshots, calculated signals, 
+    duplicate detection mechanisms, market period caching, and user subscriptions.
+    """
     
     @staticmethod
     def init_db():
